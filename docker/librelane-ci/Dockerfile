@@ -4,8 +4,7 @@
 
 FROM nixos/nix:2.24.15
 
-RUN apk add --no-cache bash git ca-certificates
-
+# Official image is a minimal layered rootfs (no apk). It already ships bash + CA bundle; add git from nixpkgs.
 # FOSSI cache + flakes (see LibreLane Linux Nix install docs).
 RUN mkdir -p /etc/nix \
   && printf '%s\n' \
@@ -13,7 +12,8 @@ RUN mkdir -p /etc/nix \
     'extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=' \
     'extra-experimental-features = nix-command flakes' \
     'sandbox = false' \
-    >> /etc/nix/nix.conf
+    >> /etc/nix/nix.conf \
+  && nix profile install nixpkgs#git --accept-flake-config
 
 ARG LIBRELANE_REF=main
 ENV LIBRELANE_ROOT=/librelane
