@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+**/.idea
+**/__pycache__
+*.pyc
+.ruff_cache
+.venv
+venv
+.env
+.envrc
+*.md
+LICENSE
