@@ -1,0 +1,49 @@
+name: LibreLane default flow
+
+# 仅在「LibreLane CI image (Nix Docker)」workflow 成功结束后自动运行；
+# 另保留 workflow_dispatch 便于手动触发。
+on:
+  workflow_run:
+    workflows: ["LibreLane CI image (Nix Docker)"]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  run-default-flow:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: GHCR image base (lowercase)
+        run: echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull CI image
+        run: docker pull "${GHCR_IMAGE}:librelane-nix-ci"
+
+      - name: Run default flow (Classic)
+        run: |
+          docker run --rm \
+            --shm-size=2g \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work \
+            "${GHCR_IMAGE}:librelane-nix-ci" \
+            nix-shell /librelane/shell.nix --run "librelane --log-level ERROR --condensed --show-progress-bar config.json"

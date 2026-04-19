@@ -1,8 +1,8 @@
-name: LibreLane (Nix Docker)
+name: LibreLane CI image (Nix Docker)
 
 on:
   push:
-  pull_request:
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -26,13 +26,13 @@ jobs:
           filters: |
             docker:
               - 'docker/librelane-ci/**'
-              - '.github/workflows/librelane-ci.yml'
+              - '.github/workflows/librelane-docker-build.yml'
 
   build-librelane-ci:
     needs: changes
     if: |
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && needs.changes.outputs.docker == 'true')
+      (github.event_name == 'push' && needs.changes.outputs.docker == 'true')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,36 +58,3 @@ jobs:
             ${{ env.GHCR_IMAGE }}:librelane-nix-ci-${{ github.sha }}
           build-args: |
             LIBRELANE_REF=main
-
-  run-default-flow:
-    needs: [changes, build-librelane-ci]
-    if: |
-      always() &&
-      needs.changes.result == 'success' &&
-      (needs.build-librelane-ci.result == 'success' ||
-       needs.build-librelane-ci.result == 'skipped')
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: GHCR image base (lowercase)
-        run: echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull CI image
-        run: docker pull "${GHCR_IMAGE}:librelane-nix-ci"
-
-      - name: Run default flow (Classic)
-        run: |
-          docker run --rm \
-            --shm-size=2g \
-            -v "${GITHUB_WORKSPACE}:/work" \
-            -w /work \
-            "${GHCR_IMAGE}:librelane-nix-ci" \
-            nix-shell /librelane/shell.nix --run "librelane --log-level ERROR --condensed --show-progress-bar config.json"
